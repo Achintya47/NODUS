@@ -1,3 +1,13 @@
+<pre align = "center">
+███╗   ██╗ ██████╗ ██████╗ ██╗   ██╗███████╗
+████╗  ██║██╔═══██╗██╔══██╗██║   ██║██╔════╝
+██╔██╗ ██║██║   ██║██║  ██║██║   ██║███████╗
+██║╚██╗██║██║   ██║██║  ██║██║   ██║╚════██║
+██║ ╚████║╚██████╔╝██████╔╝╚██████╔╝███████║
+╚═╝  ╚═══╝ ╚═════╝ ╚═════╝  ╚═════╝ ╚══════╝
+</pre>
+
+
 What is the purpose of NODUS?
 What functionalities I want?
 --TorrentFiles: .torrent which will have hashes of the pieces, metadata of the file
