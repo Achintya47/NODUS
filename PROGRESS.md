@@ -7,7 +7,7 @@
 ╚═╝  ╚═══╝ ╚═════╝ ╚═════╝  ╚═════╝ ╚══════╝
 </pre>
 
-### 13-02-2026
+## 13-02-2026
 Implemented piece_generator() function, which takes in a filestream (binary), based on the buffer (1KB) generates raw-hash content and concatenates that into a hash-blob.
     *What's Next* :
         Since this as of now works fine, we'll move with implementation of : 
@@ -25,7 +25,7 @@ Implemented piece_generator() function, which takes in a filestream (binary), ba
         3. Piece size etc.. must be part of NODUS's metadata
 
 
-### 23-02-2026
+## 23-02-2026
 Had a long break, IIT Roorkee + VaishnoDevi + Brother's marriage, anyways getting back at the architecture.
 
 1. Implement Proper Bencoding
@@ -55,10 +55,14 @@ step 7 : build the .torrent file, containing the file metadata, and piece hashes
 step 1 : A peer has the info hash, they ask on the network for peers with pieces of the info hash
 step 2 : pieces respond, the user recieves data and compares piece hashes
 
-### 23-02-2026 0153 hours
+## 23-02-2026 0153 hours
 File → Pieces → Piece Hashes → Info Dictionary → Bencoded Bytes → Info Hash
 
 Implemented recursive encoding, using Bencoder::encode(info_dict)
 Then finally we generate the info hash, by hashing the bencode_info, this will be our DHT Lookup key, which will be queried against the ip-addresses
+    *What's Next* :
+        1. We need to get ideas about the connection, and protocols
+        2. Setup bootstraps like dht.transmissionbt.com or router.bittorrent.com for a peer to join the dht network.
+            2.1. After joining, logic is simple, you talk to peers directly following the torrent protocol
 
 
