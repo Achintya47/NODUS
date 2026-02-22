@@ -17,102 +17,102 @@
 #include <openssl/evp.h> // for SHA256 functions
 #include <chrono>   // for noting time
 
-class PieceGenerator {
-    public: 
-
-
-
-        std::vector<unsigned char> sha256_raw(const std::vector<char>& buffer,
-            std::streamsize length) {
-                // Context Object
-                EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-                if (!ctx)
+// Initialize the hash utilities, hash some data and return a vector
+// of the hash
+class SHA1Hasher {
+    public : 
+        std::vector<unsigned char> hash(const char* data, size_t len) {
+            EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+            if (!ctx)
                     throw std::runtime_error("Failed to create EVP_MD_CTX");
-                
-                // Initialize sha256 instance
-                const EVP_MD* md = EVP_sha256();
 
-                if (EVP_DigestInit_ex(ctx, md, nullptr) != 1)
-                    throw std::runtime_error("EVP_DigestInit_ex failed");
+            if (EVP_DigestInit_ex(ctx, EVP_sha1(), nullptr) != 1)
+                throw std::runtime_error("DigestInit Failed");
 
-                if (EVP_DigestUpdate(ctx, buffer.data(), length) != 1)
-                    throw std::runtime_error("EVP_DigestUpdate failed");
+            if (EVP_DigestUpdate(ctx, data, len) != 1)
+                throw std::runtime_error("DigestUpdate failed");
+            
+            unsigned char hash[EVP_MAX_MD_SIZE];
+            unsigned int hash_len = 0;
 
-                unsigned char hash[EVP_MAX_MD_SIZE];
-                unsigned int hash_len = 0;
+            if (EVP_DigestFinal_ex(ctx, hash, &hash_len) != 1)
+                throw std::runtime_error("DigestFinal failed");
+            
+            EVP_MD_CTX_free(ctx);
+            
+            return std::vector<unsigned char>(hash, hash + hash_len);
+        }
+};
 
-                if (EVP_DigestFinal_ex(ctx, hash, &hash_len) != 1)
-                    throw std::runtime_error("EVP_DigestFinal_ex failed");
 
-                EVP_MD_CTX_free(ctx);
+// Scan a file and return its contents in a vector buffer, w.r.t the buffer size
+class FileScanner {
+    public: 
+        explicit FileScanner(const std::string& path) : file_(path, std::ios::binary) {
 
-                return std::vector<unsigned char>(hash, hash + hash_len);
+            if (!file_) throw std::runtime_error("Failed to load file");
+
+            file_.seekg(0, std::ios::end);
+            file_size_  = file_.tellg();
+            file_.seekg(0, std::ios::beg);
+
         }
 
-        // The performance gain is not significant, thus we'll initially stick with the og
-        // std::vector<unsigned char> sha256_raw_2(EVP_MD_CTX* ctx,
-        //     const std::vector<char>& buffer, std::streamsize length) {
+        bool read_chunk(std::vector<char>& buffer, std::streamsize& bytesRead) {
 
-        //         const EVP_MD* md = EVP_sha256();
+            if (!file_) return false;
+            file_.read(buffer.data(), buffer.size());
+            bytesRead = file_.gcount();
 
-        //         if (EVP_DigestInit_ex(ctx, md, nullptr) != 1)
-        //             throw std::runtime_error("EVP_DigestInit_ex failed");
+            return bytesRead > 0;
+        }
 
-        //         if (EVP_DigestUpdate(ctx, buffer.data(), length) != 1)
-        //             throw std::runtime_error("EVP_DigestUpdate failed");
-
-        //         unsigned char hash[EVP_MAX_MD_SIZE];
-        //         unsigned int hash_len = 0;
-
-        //         if (EVP_DigestFinal_ex(ctx, hash, &hash_len) != 1)
-        //             throw std::runtime_error("EVP_DigestFinal_ex failed");
-
-        //         return std::vector<unsigned char>(hash, hash + hash_len);
-        // }
-
-        std::vector<unsigned char> piece_generator(const std::string& file_path,
-            const size_t buffer_size) {
-                std::ifstream file(file_path, std::ios::binary);
-                if (!file)
-                    throw std::runtime_error("Failed to open file");
-
-                std::vector<char> buffer(buffer_size);
-                std::vector<unsigned char> pieces_blob;
-
-                size_t piece_count = 0;
-
-                // Context initialization overhead is very small, thus no issues
-                // EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-                // if (!ctx) throw std::runtime_error("Failed to create EVP_MD_CTX");
-
-
-                while (file.read(buffer.data(), buffer_size) || file.gcount() > 0) {
-                        std::streamsize bytesRead = file.gcount();
-
-                        std::vector<unsigned char> hash = sha256_raw(buffer, bytesRead);
-
-                        // append raw 32-byte hash
-                        pieces_blob.insert(pieces_blob.end(), hash.begin(), hash.end());
-
-                        piece_count++;
-
-                        std::cout << "Piece: " << piece_count
-                                << " Size: " << bytesRead
-                                << " bytes\n";
-                }
-                std::cout << "Total Pieces: " << piece_count << "\n";
-
-                return pieces_blob;
-            }
-
+        uint64_t file_size() const { return file_size_; }
+    private:
+        std::ifstream file_;
+        uint64_t file_size_;
 };
+
+// Piece manager, orchestrates the piece creation, and generates the pieces blob
+class PieceManager {
+    public: 
+        PieceManager(size_t piece_size, SHA1Hasher& hasher) : piece_size_(piece_size),
+            hasher_(hasher) {}
+
+        void process(FileScanner& scanner) {
+            std::vector<char> buffer(piece_size_);
+            std::streamsize bytesRead;
+
+            while (scanner.read_chunk(buffer, bytesRead)) {
+                std::vector<unsigned char> hash = hasher_.hash(buffer.data(), bytesRead);
+
+                pieces_blob_.insert(
+                    pieces_blob_.end(),
+                    hash.begin(),
+                    hash.end()
+                );
+
+                piece_count_++; 
+            }
+        }
+
+        const std::vector<unsigned char>& pieces_blob() const{
+            return pieces_blob_;
+        }
+
+        size_t piece_count() const {
+            return piece_count_;
+        }
+
+    private:
+        size_t piece_size_;
+        SHA1Hasher hasher_;
+        std::vector<unsigned char> pieces_blob_;
+        size_t piece_count_;
+    };
 
 int main() {
     auto start = std::chrono::high_resolution_clock::now();
-
-    PieceGenerator piece_gen;
-    std::vector<unsigned char> hash_blob = piece_gen.piece_generator("In search of the castaways.txt", 1024);
-    std::cout << '\n' << hash_blob.size() << '\n';
 
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -122,7 +122,3 @@ int main() {
 
 }
 
-class FileScanner {};
-class SHA1Hasher {}; 
-class Bencoder {};
-class TorrentFileBuilder {};
