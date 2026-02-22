@@ -59,7 +59,7 @@ Had a long break, IIT Roorkee + VaishnoDevi + Brother's marriage, anyways gettin
 File → Pieces → Piece Hashes → Info Dictionary → Bencoded Bytes → Info Hash
 
 Implemented recursive encoding, using Bencoder::encode(info_dict)
-Then finally we generate the info hash, by hashing the bencode_info, this will be our DHT Lookup key, which will be queried against the ip-addresses
+Then finally we generate the info hash, by hashing the bencode_info, this will be our DHT Lookup key, which will be queried against the ip-addresses  
     - *What's Next* :
         1. We need to get ideas about the connection, and protocols
         2. Setup bootstraps like dht.transmissionbt.com or router.bittorrent.com for a peer to join the dht network.
