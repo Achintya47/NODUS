@@ -37,23 +37,23 @@ Had a long break, IIT Roorkee + VaishnoDevi + Brother's marriage, anyways gettin
 7. Implement peer wire protocol
 
 ## METADATA LAYER 
-step 1 : split file into pieces, each piece is raw bytes from the file
-step 2 : hash each piece (sha1)
-step 3 : concatenate the hashes into a piece blob
-step 4 : build info dictionary
+1. split file into pieces, each piece is raw bytes from the file
+2. hash each piece (sha1)
+3. concatenate the hashes into a piece blob
+4. build info dictionary
     {
         "name": "file.txt",
         "length": 5242880,
         "piece length": 16384,
         "pieces": <binary concatenated SHA1 hashes>
     }
-step 5 : bencode the info dict, we need proper sequence of these information, bencoding enforces deterministic format
-step 6 : generate info hash (sha1(bencoded info)), this is where DHT comes into play
-step 7 : build the .torrent file, containing the file metadata, and piece hashes, not actual piece data
+5. bencode the info dict, we need proper sequence of these information, bencoding enforces deterministic format
+6. generate info hash (sha1(bencoded info)), this is where DHT comes into play
+7. build the .torrent file, containing the file metadata, and piece hashes, not actual piece data
 
 ## SHARING LAYER
-step 1 : A peer has the info hash, they ask on the network for peers with pieces of the info hash
-step 2 : pieces respond, the user recieves data and compares piece hashes
+1. A peer has the info hash, they ask on the network for peers with pieces of the info hash
+2. pieces respond, the user recieves data and compares piece hashes
 
 ## 23-02-2026 0153 hours
 File → Pieces → Piece Hashes → Info Dictionary → Bencoded Bytes → Info Hash
