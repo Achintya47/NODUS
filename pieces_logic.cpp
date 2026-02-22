@@ -16,6 +16,8 @@
 #include <vector>    // for std::vector
 #include <openssl/evp.h> // for SHA256 functions
 #include <chrono>   // for noting time
+#include <map> // for bencode dicts
+#include <variant> // for bencode variant dtypes
 
 // Initialize the hash utilities, hash some data and return a vector
 // of the hash
@@ -73,11 +75,12 @@ class FileScanner {
         uint64_t file_size_;
 };
 
+
 // Piece manager, orchestrates the piece creation, and generates the pieces blob
 class PieceManager {
     public: 
         PieceManager(size_t piece_size, SHA1Hasher& hasher) : piece_size_(piece_size),
-            hasher_(hasher) {}
+            hasher_(hasher), piece_count_(0) {}
 
         void process(FileScanner& scanner) {
             std::vector<char> buffer(piece_size_);
@@ -109,17 +112,157 @@ class PieceManager {
         SHA1Hasher hasher_;
         std::vector<unsigned char> pieces_blob_;
         size_t piece_count_;
-    };
+};
 
-int main() {
-    auto start = std::chrono::high_resolution_clock::now();
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+class BencodeValue {
+    public: 
+        using Integer = int64_t;
+        using String = std::vector<unsigned char>;
+        using List = std::vector<BencodeValue>;
+        using Dict = std::map<std::string, BencodeValue>;
 
-    std::cout << "Execution time: " << duration.count() << " ms\n";
-    return 0;
-    
+        BencodeValue(Integer val) : value_(val) {}
+        BencodeValue(const String& val) : value_(val) {}
+        BencodeValue(const List& val) : value_(val) {}
+        BencodeValue(const Dict& val) : value_(val) {}
 
+        const auto& value() const { return value_; }
+
+    private:
+        std::variant<Integer, String, List, Dict> value_;
+
+        friend class Bencoder;
+};
+
+
+class Bencoder {
+    public:
+        static std::vector<unsigned char> encode(const BencodeValue& val);
+
+    private:
+        static void encode_value(const BencodeValue& val,
+                                std::vector<unsigned char>& out);
+
+        static void encode_integer(int64_t value,
+                                std::vector<unsigned char>& out);
+
+        static void encode_string(const std::vector<unsigned char>& str,
+                                std::vector<unsigned char>& out);
+
+        static void encode_list(const BencodeValue::List& list,
+                                std::vector<unsigned char>& out);
+
+        static void encode_dict(const BencodeValue::Dict& dict,
+                            std::vector<unsigned char>& out);
+};
+
+std::vector<unsigned char> Bencoder::encode(const BencodeValue& val) {
+    std::vector<unsigned char> output;
+    encode_value(val, output);
+    return output;
 }
 
+void Bencoder::encode_value(const BencodeValue& val,
+                            std::vector<unsigned char>& out) {
+    const auto& v = val.value();
+
+    if (std::holds_alternative<BencodeValue::Integer>(v)) {
+        encode_integer(std::get<BencodeValue::Integer>(v), out);
+    }
+    else if (std::holds_alternative<BencodeValue::String>(v)) {
+        encode_string(std::get<BencodeValue::String>(v), out);
+    }
+    else if (std::holds_alternative<BencodeValue::List>(v)) {
+        encode_list(std::get<BencodeValue::List>(v), out);
+    }
+    else if (std::holds_alternative<BencodeValue::Dict>(v)) {
+        encode_dict(std::get<BencodeValue::Dict>(v), out);
+    }
+}
+
+void Bencoder::encode_integer(int64_t value,
+                              std::vector<unsigned char>& out)
+{
+    out.push_back('i');
+    auto str = std::to_string(value);
+    out.insert(out.end(), str.begin(), str.end());
+    out.push_back('e');
+}
+
+void Bencoder::encode_string(const std::vector<unsigned char>& str,
+                             std::vector<unsigned char>& out)
+{
+    auto len_str = std::to_string(str.size());
+    out.insert(out.end(), len_str.begin(), len_str.end());
+    out.push_back(':');
+    out.insert(out.end(), str.begin(), str.end());
+}
+
+void Bencoder::encode_list(const BencodeValue::List& list,
+                           std::vector<unsigned char>& out)
+{
+    out.push_back('l');
+    for (const auto& item : list) {
+        encode_value(item, out);
+    }
+    out.push_back('e');
+}
+
+void Bencoder::encode_dict(const BencodeValue::Dict& dict,
+                           std::vector<unsigned char>& out)
+{
+    out.push_back('d');
+
+    // std::map guarantees lexicographic key ordering
+    for (const auto& [key, value] : dict) {
+
+        std::vector<unsigned char> key_bytes(key.begin(), key.end());
+        encode_string(key_bytes, out);
+
+        encode_value(value, out);
+    }
+
+    out.push_back('e');
+}
+
+BencodeValue build_info_dict (
+    const std::string& name,
+    uint64_t length,
+    size_t piece_length,
+    const std::vector<unsigned char> & pieces_blob) {
+
+        BencodeValue::Dict dict;
+        dict["length"] = BencodeValue(static_cast<int64_t>(length));
+        dict["name"] = BencodeValue(std::vector<unsigned char>(name.begin(), name.end()));
+        dict["piece length"] = BencodeValue(static_cast<int64_t>(piece_length));
+        dict["pieces"] = BencodeValue(pieces_blob);
+    
+        return BencodeValue(dict);
+}
+
+
+int main() {
+    SHA1Hasher hasher;
+
+    FileScanner scanner("file.txt");
+    size_t PIECE_SIZE = 1024;
+
+    PieceManager manager(PIECE_SIZE, hasher);
+
+    manager.process(scanner);
+
+    auto info_dict = build_info_dict(
+        "file.txt", 
+        scanner.file_size(),
+        PIECE_SIZE,
+        manager.pieces_blob()
+    );
+
+    auto bencoded_info = Bencoder::encode(info_dict);
+
+    auto info_hash = hasher.hash(
+        reinterpret_cast<const char*>(bencoded_info.data()),
+        bencoded_info.size());
+    
+}

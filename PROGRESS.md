@@ -55,4 +55,10 @@ step 7 : build the .torrent file, containing the file metadata, and piece hashes
 step 1 : A peer has the info hash, they ask on the network for peers with pieces of the info hash
 step 2 : pieces respond, the user recieves data and compares piece hashes
 
+### 23-02-2026 0153 hours
+File → Pieces → Piece Hashes → Info Dictionary → Bencoded Bytes → Info Hash
+
+Implemented recursive encoding, using Bencoder::encode(info_dict)
+Then finally we generate the info hash, by hashing the bencode_info, this will be our DHT Lookup key, which will be queried against the ip-addresses
+
 
